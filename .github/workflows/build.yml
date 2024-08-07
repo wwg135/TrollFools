@@ -15,6 +15,10 @@ jobs:
         with:
             submodules: recursive
 
+      - name: Install xz and tar
+        run: |
+          brew update
+          brew install xz tar
       - name: Pre Procursus
         uses: wwg135/procursus-action@main
         with:
