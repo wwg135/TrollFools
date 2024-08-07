@@ -65,6 +65,11 @@ final class App: Identifiable, ObservableObject {
     }
 }
 
+enum SortOrder {
+    case ascending
+    case descending
+}
+
 final class AppListModel: ObservableObject {
     static let shared = AppListModel()
     static let hasTrollStore: Bool = { LSApplicationProxy(forIdentifier: "com.opa334.TrollStore") != nil }()
@@ -129,6 +134,8 @@ final class AppListModel: ObservableObject {
         performFilter()
     }
 
+    @Published var sortOrder: SortOrder = .ascending
+    
     func performFilter() {
         var filteredApplications = _allApplications
 
@@ -141,7 +148,9 @@ final class AppListModel: ObservableObject {
         if filter.showPatchedOnly {
             filteredApplications = filteredApplications.filter { $0.isInjected }
         }
-
+        
+        filteredApplications.sort { sortOrder == .ascending ? $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedDescending }
+        
         userApplications = filteredApplications.filter { $0.isUser }
         trollApplications = filteredApplications.filter { $0.isFromTroll }
         appleApplications = filteredApplications.filter { $0.isFromApple }
@@ -408,9 +417,12 @@ struct AppListCell: View {
 
 struct AppListView: View {
     @StateObject var vm = AppListModel.shared
+    @State private var isUsingOfficialIcon = false
 
     @State var isErrorOccurred: Bool = false
     @State var errorMessage: String = ""
+    @State private var showSearchBar = false
+    @State private var searchText: String = ""
 
     var appNameString: String {
         Bundle.main.infoDictionary?["CFBundleName"] as? String ?? "TrollFools"
@@ -426,7 +438,9 @@ struct AppListView: View {
         String(format: """
 %@ %@ %@ © 2024
 %@
-""", appNameString, appVersionString, NSLocalizedString("Copyright", comment: ""), NSLocalizedString("Lessica, Lakr233, mlgm and other contributors.", comment: ""))
+%@
+""", appNameString, appVersionString, NSLocalizedString("Copyright", comment: ""), NSLocalizedString("Lessica, Lakr233, mlgm and other contributors.", comment: ""),
+               NSLocalizedString("huami Add some features", comment: ""))
     }
 
     let repoURL = URL(string: "https://github.com/Lessica/TrollFools")
@@ -560,45 +574,100 @@ struct AppListView: View {
             } label: { }
         })
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    vm.filter.showPatchedOnly.toggle()
-                } label: {
-                    if #available(iOS 15.0, *) {
-                        Image(systemName: vm.filter.showPatchedOnly 
-                              ? "line.3.horizontal.decrease.circle.fill"
-                              : "line.3.horizontal.decrease.circle")
-                    } else {
-                        Image(systemName: vm.filter.showPatchedOnly 
-                              ? "eject.circle.fill"
-                              : "eject.circle")
+            ToolbarItem(placement: .navigationBarLeading) {
+                Menu {
+                    Button(NSLocalizedString("Name (A-Z)", comment: "")) {
+                        vm.sortOrder = .ascending
+                        vm.performFilter()
                     }
+                    Button(NSLocalizedString("Name (Z-A)", comment: "")) {
+                        vm.sortOrder = .descending
+                        vm.performFilter()
+                    }
+                    Button(action: toggleAppIcon) {
+                        Text(isUsingOfficialIcon ? NSLocalizedString("Switch to Default Icon", comment: "") : NSLocalizedString("Switch to Official Icon", comment: ""))
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.square")
+                }
+                .accessibilityLabel(NSLocalizedString("Sort Order", comment: ""))
+            }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    vm.filter.showPatchedOnly.toggle()
+                }) {
+                    Image(systemName: vm.filter.showPatchedOnly
+                          ? "line.3.horizontal.decrease.circle.fill"
+                          : "line.3.horizontal.decrease.circle")
                 }
                 .accessibilityLabel(NSLocalizedString("Show Patched Only", comment: ""))
             }
         }
+        .onChange(of: vm.sortOrder) { _ in
+            vm.performFilter()
+        }
+        .onAppear {
+            vm.reload()
+            checkCurrentIcon()
+        }
     }
+
+    private func toggleAppIcon() {
+        let newIcon = isUsingOfficialIcon ? nil : "AppIcon-official"
+
+        UIApplication.shared.setAlternateIconName(newIcon) { error in
+            if let error = error {
+                print("Failed to set icon: \(error)")
+            }
+        }
+        
+        isUsingOfficialIcon.toggle()
+    }
+
+    private func checkCurrentIcon() {
+        let currentIconName = UIApplication.shared.alternateIconName
+        DispatchQueue.main.async {
+            self.isUsingOfficialIcon = (currentIconName == "AppIcon-official")
+        }
+    }
+
 
     var body: some View {
         NavigationView {
-            if #available(iOS 15.0, *) {
-                appList
-                    .refreshable {
-                        withAnimation {
-                            vm.reload()
+            VStack {
+                if #available(iOS 15.0, *) {
+                    appList
+                        .refreshable {
+                            withAnimation {
+                                vm.reload()
+                            }
                         }
-                    }
-                    .searchable(
-                        text: $vm.filter.searchKeyword,
-                        placement: .automatic,
-                        prompt: (vm.filter.showPatchedOnly
-                                 ? NSLocalizedString("Search Patched…", comment: "")
-                                 : NSLocalizedString("Search…", comment: ""))
-                    )
-                    .textInputAutocapitalization(.never)
-            } else {
-                // Fallback on earlier versions
-                appList
+                        .searchable(
+                            text: $vm.filter.searchKeyword,
+                            placement: .automatic,
+                            prompt: (vm.filter.showPatchedOnly
+                                     ? NSLocalizedString("Search Patched…", comment: "")
+                                     : NSLocalizedString("Search…", comment: ""))
+                        )
+                        .textInputAutocapitalization(.never)
+                        .navigationTitle("Applications")
+                } else {
+                    TextField(NSLocalizedString("Search...", comment: ""), text: $searchText)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                        .padding(.horizontal)
+
+                    appList
+                        .onAppear {
+                            vm.filter.searchKeyword = searchText
+                        }
+                        .onChange(of: searchText) { newValue in
+                            vm.filter.searchKeyword = newValue
+                            vm.performFilter()
+                        }
+                }
             }
         }
     }

@@ -122,6 +122,7 @@ struct OptionView: View {
                 .framework,
                 .package,
                 .zip,
+                .init(filenameExtension: "deb")!,
             ],
             allowsMultipleSelection: true
         ) {

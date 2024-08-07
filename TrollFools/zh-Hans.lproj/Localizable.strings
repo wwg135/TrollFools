@@ -137,4 +137,19 @@
 "User Applications" = "用户应用";
 
 /* No comment provided by engineer. */
+"huami Add some features" = "huami. 添加部分功能";
+
+/* No comment provided by engineer. */
+"Name (A-Z)" = "名称 (A-Z)";
+
+/* No comment provided by engineer. */
+"Name (Z-A)" = "名称 (Z-A)";
+
+/* No comment provided by engineer. */
+"Switch to Default Icon" = "切换到默认图标";
+
+/* No comment provided by engineer. */
+"Switch to Official Icon" = "切换到官方图标";
+
+/* No comment provided by engineer. */
 "You need to rebuild the icon cache in TrollStore to apply changes." = "你需要在 TrollStore 中重建图标缓存以应用更改。";

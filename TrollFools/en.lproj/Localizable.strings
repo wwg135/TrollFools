@@ -137,4 +137,20 @@
 "User Applications" = "User Applications";
 
 /* No comment provided by engineer. */
+
+"huami Add some features" = "huami Add some features";
+
+/* No comment provided by engineer. */
+"Name (A-Z)" = "Name (A-Z)";
+
+/* No comment provided by engineer. */
+"Name (Z-A)" = "Name (Z-A)";
+
+/* No comment provided by engineer. */
+"Switch to Default Icon" = "Switch to Default Icon";
+
+/* No comment provided by engineer. */
+"Switch to Official Icon" = "Switch to Official Icon";
+
+/* No comment provided by engineer. */
 "You need to rebuild the icon cache in TrollStore to apply changes." = "You need to rebuild the icon cache in TrollStore to apply changes.";
