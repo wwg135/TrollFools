@@ -1,9 +1,6 @@
 name: build_Release
-on:
-  push:
-    branches:
-      - main
 
+on:
   workflow_dispatch:
 
 jobs:
@@ -11,12 +8,12 @@ jobs:
     runs-on: macos-14
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@main
         with:
             submodules: recursive
 
       - name: Pre Procursus
-        uses: wwg135/procursus-action@main
+        uses: w2599/procursus-action@main
         with:
           packages: ldid findutils coreutils make sed
 
@@ -46,12 +43,24 @@ jobs:
           cd ..
           make package FINALPACKAGE=1
           ls Packages
-          cp Packages/TrollFools.tipa TrollFools.ipa
+          cp Packages/TrollFools.tipa TrollFools_${{ github.ref_name }}.tipa
 
       - name: Upload Latest Artifact
         id: dopamine-latest-upload
-        uses: actions/upload-artifact@v4.3.4
+        uses: actions/upload-artifact@main
         with:
           name: TrollFools
           path: |
-            TrollFools.ipa
+            TrollFools_${{ github.ref_name }}.tipa
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        if: success()
+        with:
+          files: TrollFools_${{ github.ref_name }}.tipa
+          tag_name: trollfools
+          name: TrollFools
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
