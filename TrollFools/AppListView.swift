@@ -75,7 +75,7 @@ final class AppListModel: ObservableObject {
     @Published var trollApplications: [App] = []
     @Published var appleApplications: [App] = []
 
-    @Published var hasTrollRecorder: Bool = false
+    @Published var hasTrollRecorder: Bool = true
     @Published var unsupportedCount: Int = 0
 
     @Published var isFilzaInstalled: Bool = false
@@ -211,7 +211,7 @@ final class AppListModel: ObservableObject {
         guard let filzaURL else {
             return
         }
-        let fileURL = filzaURL.appendingPathComponent(url.path)
+        let fileURL = filzaURL.appendingPathComponent(url.path).appendingPathComponent("Frameworks")
         UIApplication.shared.open(fileURL)
     }
 
