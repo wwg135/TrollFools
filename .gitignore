@@ -145,8 +145,6 @@ fastlane/test_output
 
 iOSInjectionProject/
 
-### Xcode ###
-
 ## Xcode 8 and earlier
 
 ### Xcode Patch ###
