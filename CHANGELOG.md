@@ -1,3 +1,8 @@
-# Bug Fixes
+## New Features
 
-Now application without a short version string will be displayed in the list.
+- Receive `.dylib` files from share sheets and inject them into specified applications.
+
+## Bug Fixes
+
+- Avoid in-box document renaming.
+- Removed ads and prevented the app from crashing.

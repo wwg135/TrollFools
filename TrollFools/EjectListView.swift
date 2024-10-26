@@ -5,7 +5,6 @@
 //  Created by Lessica on 2024/7/20.
 //
 
-import CocoaLumberjackSwift
 import Combine
 import SwiftUI
 
@@ -29,9 +28,10 @@ struct InjectedPlugIn: Identifiable {
 }
 
 struct PlugInCell: View {
-    let plugIn: InjectedPlugIn
-
+    @EnvironmentObject var vm: AppListModel
     @EnvironmentObject var filter: FilterOptions
+
+    let plugIn: InjectedPlugIn
 
     @available(iOS 15.0, *)
     var highlightedName: AttributedString {
@@ -89,10 +89,10 @@ struct PlugInCell: View {
         }
     }
 
-    var isFilzaInstalled: Bool { AppListModel.shared.isFilzaInstalled }
+    var isFilzaInstalled: Bool { vm.isFilzaInstalled }
 
     private func openInFilza() {
-        AppListModel.shared.openInFilza(plugIn.url)
+        vm.openInFilza(plugIn.url)
     }
 }
 
@@ -256,7 +256,7 @@ struct EjectListView: View {
             vm.app.reload()
             vm.reload()
         } catch {
-            DDLogError("\(error)")
+            NSLog("\(error)")
 
             errorMessage = error.localizedDescription
             isErrorOccurred = true
@@ -297,7 +297,7 @@ struct EjectListView: View {
                             isDeletingAll = false
                         }
 
-                        DDLogError("\(error)")
+                        NSLog("\(error)")
 
                         errorMessage = error.localizedDescription
                         isErrorOccurred = true

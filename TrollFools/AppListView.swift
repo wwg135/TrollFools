@@ -5,7 +5,6 @@
 //  Created by Lessica on 2024/7/19.
 //
 
-import CocoaLumberjackSwift
 import Combine
 import SwiftUI
 
@@ -30,13 +29,14 @@ final class App: Identifiable, ObservableObject {
     lazy var isFromTroll: Bool = isSystem && !isFromApple
     lazy var isRemovable: Bool = url.path.contains("/var/containers/Bundle/Application/")
 
-    init(id: String,
-         name: String,
-         type: String,
-         teamID: String,
-         url: URL,
-         version: String? = nil,
-         alternateIcon: UIImage? = nil
+    init(
+        id: String,
+        name: String,
+        type: String,
+        teamID: String,
+        url: URL,
+        version: String? = nil,
+        alternateIcon: UIImage? = nil
     ) {
         self.id = id
         self.name = name
@@ -66,9 +66,11 @@ final class App: Identifiable, ObservableObject {
 }
 
 final class AppListModel: ObservableObject {
-    static let shared = AppListModel()
     static let hasTrollStore: Bool = { LSApplicationProxy(forIdentifier: "com.opa334.TrollStore") != nil }()
     private var _allApplications: [App] = []
+
+    let selectorURL: URL?
+    var isSelectorMode: Bool { selectorURL != nil }
 
     @Published var filter = FilterOptions()
     @Published var userApplications: [App] = []
@@ -87,7 +89,8 @@ final class AppListModel: ObservableObject {
     private let applicationChanged = PassthroughSubject<Void, Never>()
     private var cancellables = Set<AnyCancellable>()
 
-    private init() {
+    init(selectorURL: URL? = nil) {
+        self.selectorURL = selectorURL
         reload()
 
         filter.$searchKeyword
@@ -116,6 +119,11 @@ final class AppListModel: ObservableObject {
             }
             observer.applicationChanged.send()
         }, "com.apple.LaunchServices.ApplicationsChanged" as CFString, nil, .coalesce)
+    }
+
+    deinit {
+        let darwinCenter = CFNotificationCenterGetDarwinNotifyCenter()
+        CFNotificationCenterRemoveObserver(darwinCenter, Unmanaged.passUnretained(self).toOpaque(), nil, nil)
     }
 
     func reload() {
@@ -234,8 +242,10 @@ final class FilterOptions: ObservableObject {
 }
 
 struct AppListCell: View {
-    @StateObject var app: App
+    @EnvironmentObject var vm: AppListModel
     @EnvironmentObject var filter: FilterOptions
+
+    @StateObject var app: App
 
     @available(iOS 15.0, *)
     var highlightedName: AttributedString {
@@ -281,9 +291,9 @@ struct AppListCell: View {
                         try injector.setDetached(false)
                         withAnimation {
                             app.reload()
-                            AppListModel.shared.isRebuildNeeded = true
+                            vm.isRebuildNeeded = true
                         }
-                    } catch { DDLogError("\(error.localizedDescription)") }
+                    } catch { NSLog("\(error.localizedDescription)") }
                 } label: {
                     Label(NSLocalizedString("Unlock Version", comment: ""), systemImage: "lock.open")
                 }
@@ -294,9 +304,9 @@ struct AppListCell: View {
                         try injector.setDetached(true)
                         withAnimation {
                             app.reload()
-                            AppListModel.shared.isRebuildNeeded = true
+                            vm.isRebuildNeeded = true
                         }
-                    } catch { DDLogError("\(error.localizedDescription)") }
+                    } catch { NSLog("\(error.localizedDescription)") }
                 } label: {
                     Label(NSLocalizedString("Lock Version", comment: ""), systemImage: "lock")
                 }
@@ -325,7 +335,11 @@ struct AppListCell: View {
             else {
                 // iOS 15
                 Color.clear
-                    .contextMenu { cellContextMenu }
+                    .contextMenu {
+                        if !vm.isSelectorMode {
+                            cellContextMenu
+                        }
+                    }
                     .id(app.isDetached)
             }
         }
@@ -391,7 +405,11 @@ struct AppListCell: View {
                 }
             }
         }
-        .contextMenu { cellContextMenuWrapper }
+        .contextMenu {
+            if !vm.isSelectorMode {
+                cellContextMenuWrapper
+            }
+        }
         .background(cellBackground)
     }
 
@@ -399,18 +417,20 @@ struct AppListCell: View {
         LSApplicationWorkspace.default().openApplication(withBundleID: app.id)
     }
 
-    var isFilzaInstalled: Bool { AppListModel.shared.isFilzaInstalled }
+    var isFilzaInstalled: Bool { vm.isFilzaInstalled }
 
     private func openInFilza() {
-        AppListModel.shared.openInFilza(app.url)
+        vm.openInFilza(app.url)
     }
 }
 
 struct AppListView: View {
-    @StateObject var vm = AppListModel.shared
+    @EnvironmentObject var vm: AppListModel
 
     @State var isErrorOccurred: Bool = false
     @State var errorMessage: String = ""
+
+    @State var selectorOpenedURL: URL? = nil
 
     var appNameString: String {
         Bundle.main.infoDictionary?["CFBundleName"] as? String ?? "TrollFools"
@@ -426,7 +446,7 @@ struct AppListView: View {
         String(format: """
 %@ %@ %@ © 2024
 %@
-""", appNameString, appVersionString, NSLocalizedString("Copyright", comment: ""), NSLocalizedString("Lessica, Lakr233, mlgm and other contributors.", comment: ""))
+""", appNameString, appVersionString, NSLocalizedString("Copyright", comment: ""), NSLocalizedString("Made with ♥ by OwnGoal Studio", comment: ""))
     }
 
     let repoURL = URL(string: "https://github.com/Lessica/TrollFools")
@@ -434,7 +454,11 @@ struct AppListView: View {
     func filteredAppList(_ apps: [App]) -> some View {
         ForEach(apps, id: \.id) { app in
             NavigationLink {
-                OptionView(app)
+                if vm.isSelectorMode, let selectorURL = vm.selectorURL {
+                    InjectView(app, urlList: [selectorURL])
+                } else {
+                    OptionView(app)
+                }
             } label: {
                 if #available(iOS 16.0, *) {
                     AppListCell(app: app)
@@ -454,10 +478,9 @@ struct AppListView: View {
                 .font(.footnote)
 
             Button {
-                guard let url = repoURL else {
-                    return
+                if let repoURL {
+                    UIApplication.shared.open(repoURL)
                 }
-                UIApplication.shared.open(url)
             } label: {
                 Text(NSLocalizedString("Source Code", comment: ""))
                     .font(.footnote)
@@ -540,19 +563,22 @@ struct AppListView: View {
                                 .font(.footnote)
                         }
 
-                        if #available(iOS 16.0, *) {
-                            appListFooter
-                                .padding(.top, 8)
-                        } else {
-                            appListFooter
-                                .padding(.top, 2)
+                        if !vm.isSelectorMode {
+                            if #available(iOS 16.0, *) {
+                                appListFooter
+                                    .padding(.top, 8)
+                            } else {
+                                appListFooter
+                                    .padding(.top, 2)
+                            }
                         }
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(NSLocalizedString("TrollFools", comment: ""))
+        .navigationTitle(vm.isSelectorMode ? NSLocalizedString("Select Application to Inject", comment: "") : NSLocalizedString("TrollFools", comment: ""))
+        .navigationBarTitleDisplayMode(vm.isSelectorMode ? .inline : .automatic)
         .background(Group {
             NavigationLink(isActive: $isErrorOccurred) {
                 FailureView(title: NSLocalizedString("Error", comment: ""),
@@ -560,6 +586,14 @@ struct AppListView: View {
             } label: { }
         })
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                if vm.isSelectorMode, let selectorURL = vm.selectorURL {
+                    VStack {
+                        Text(selectorURL.lastPathComponent).font(.headline)
+                        Text(NSLocalizedString("Select Application to Inject", comment: "")).font(.caption)
+                    }
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     vm.filter.showPatchedOnly.toggle()
@@ -596,10 +630,21 @@ struct AppListView: View {
                                  : NSLocalizedString("Search…", comment: ""))
                     )
                     .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
             } else {
                 // Fallback on earlier versions
                 appList
             }
+        }
+        .sheet(item: $selectorOpenedURL) { url in
+            AppListView()
+                .environmentObject(AppListModel(selectorURL: url))
+        }
+        .onOpenURL { url in
+            guard url.isFileURL, url.pathExtension.lowercased() == "dylib" else {
+                return
+            }
+            selectorOpenedURL = preprocessURL(url)
         }
     }
 
@@ -626,7 +671,7 @@ struct AppListView: View {
                     }
                 }
             } catch {
-                DDLogError("\(error.localizedDescription)")
+                NSLog("\(error.localizedDescription)")
 
                 DispatchQueue.main.async {
                     errorMessage = error.localizedDescription
@@ -635,4 +680,30 @@ struct AppListView: View {
             }
         }
     }
+
+    private func preprocessURL(_ url: URL) -> URL {
+        let isInbox = url.path.contains("/Documents/Inbox/")
+        guard isInbox else {
+            return url
+        }
+        let fileNameNoExt = url.deletingPathExtension().lastPathComponent
+        let fileNameComps = fileNameNoExt.components(separatedBy: CharacterSet(charactersIn: "._- "))
+        guard let lastComp = fileNameComps.last, fileNameComps.count > 1, lastComp.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) == nil else {
+            return url
+        }
+        let newURL = url.deletingLastPathComponent()
+            .appendingPathComponent(String(fileNameNoExt.prefix(fileNameNoExt.count - lastComp.count - 1)))
+            .appendingPathExtension(url.pathExtension)
+        do {
+            try? FileManager.default.removeItem(at: newURL)
+            try FileManager.default.copyItem(at: url, to: newURL)
+            return newURL
+        } catch {
+            return url
+        }
+    }
+}
+
+extension URL: Identifiable {
+    public var id: String { absoluteString }
 }
